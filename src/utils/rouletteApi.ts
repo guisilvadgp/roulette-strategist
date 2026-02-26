@@ -50,7 +50,7 @@ function extractTables(data: any): RouletteTable[] {
       );
       
       tables.push({
-        tableId: (game.tableId || game.TableId || game.id || game.Id || game.gameId || Math.random().toString()).toString(),
+        tableId: (game.gamevariantname || game.tableId || game.TableId || game.id || game.Id || game.gameId || game.tableName || Math.random().toString()).toString(),
         tableName: name || 'Mesa sem nome',
         vendorName: (game.vendorname || game.vendorName || game.VendorName || game.vendor || game.provider || game.Provider || 'Desconhecido').toString(),
         results,
