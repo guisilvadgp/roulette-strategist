@@ -1,21 +1,5 @@
 import type { RouletteTable } from '@/types/roulette';
-
-const API_URL = 'https://www.sportingbet.bet.br/pt-br/games/api/LiveCasino/GetData?isSitecoreInfoRequired=false';
-
-const HEADERS: Record<string, string> = {
-  'accept': 'application/json, text/plain, */*',
-  'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-  'cache-control': 'no-cache',
-  'expires': '0',
-  'pragma': 'no-cache',
-  'sec-ch-ua': '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
-  'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"Windows"',
-  'x-bwin-browser-url': 'https://www.sportingbet.bet.br/pt-br/games/livecasino',
-  'x-bwin-casino-api': 'prod',
-  'x-device-type': 'desktop',
-  'x-from-product': 'host-app',
-};
+import { supabase } from '@/integrations/supabase/client';
 
 let retryCount = 0;
 const MAX_RETRIES = 3;
@@ -44,8 +28,7 @@ function extractTables(data: any): RouletteTable[] {
   const tables: RouletteTable[] = [];
   
   try {
-    // Try various data structures
-    const items = data?.tables || data?.Games || data?.games || 
+    const items = data?.liveCasinoApiDataItems || data?.tables || data?.Games || data?.games || 
                   data?.data?.tables || data?.data?.Games ||
                   data?.liveGames || data?.LiveGames || [];
     
@@ -57,7 +40,6 @@ function extractTables(data: any): RouletteTable[] {
       const gameType = (game.gameType || game.GameType || game.type || game.category || '').toString().toLowerCase();
       const name = (game.tableName || game.TableName || game.name || game.Name || game.title || '').toString();
       
-      // Filter for roulette tables
       const isRoulette = gameType.includes('roulette') || gameType.includes('roleta') ||
                          name.toLowerCase().includes('roulette') || name.toLowerCase().includes('roleta');
       
@@ -70,7 +52,7 @@ function extractTables(data: any): RouletteTable[] {
       tables.push({
         tableId: (game.tableId || game.TableId || game.id || game.Id || game.gameId || Math.random().toString()).toString(),
         tableName: name || 'Mesa sem nome',
-        vendorName: (game.vendorName || game.VendorName || game.vendor || game.provider || game.Provider || 'Desconhecido').toString(),
+        vendorName: (game.vendorname || game.vendorName || game.VendorName || game.vendor || game.provider || game.Provider || 'Desconhecido').toString(),
         results,
         gameType: gameType || 'roulette',
       });
@@ -84,18 +66,18 @@ function extractTables(data: any): RouletteTable[] {
 
 export async function fetchRouletteTables(signal?: AbortSignal): Promise<RouletteTable[]> {
   try {
-    const response = await fetch(API_URL, {
+    const { data, error } = await supabase.functions.invoke('roulette-proxy', {
       method: 'GET',
-      headers: HEADERS,
-      credentials: 'include',
-      signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    if (error) {
+      throw new Error(`Edge function error: ${error.message}`);
     }
 
-    const data = await response.json();
+    if (data?.error) {
+      throw new Error(`Proxy error: ${data.error}`);
+    }
+
     retryCount = 0;
     
     const tables = extractTables(data);
